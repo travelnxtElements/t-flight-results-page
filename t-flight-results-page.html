@@ -1,0 +1,268 @@
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../t-sessionstorage/t-sessionstorage.html">
+<link rel="import" href="../t-list/t-list.html">
+<link rel="import" href="../t-notify/t-notify.html">
+<link rel="import" href="../t-search-overlay/t-search-overlay.html">
+<link rel="import" href="../t-header/t-header-search-recap.html">
+<link rel="import" href="../t-text-container/travel-element-styles.html">
+<link rel="import" href="../t-behavior/t-page-behavior.html">
+<link rel="import" href="../t-result-item/t-result-item.html">
+<link rel="import" href="../t-behavior/t-session-behavior.html"/>
+
+<dom-module id="t-flight-result-page">
+  <template>
+    <style>
+      :host {
+          display: block;
+      }
+      .result-item{
+          margin: var(--normal-spacing,10px);
+          margin-bottom: 0;
+      }
+    </style>
+
+    <t-notify id="notify"></t-notify>
+
+    <content></content>        
+
+    <t-search-overlay icon="[[flightIcon]]" id="loadingOverlay">
+      <div class="data">
+        <div class="font-12 text-center secondary-text overlayData">
+          <t-header-search-recap
+            hide-edit-icon
+            recap-data="{{flightRecapData}}">
+          </t-header-search-recap>
+        </div>
+      </div>
+      <div class="footer">
+        <img src="[[siteLogoUrl]]"
+          title="[[siteLogoUrl]]" alt="" style="width:232px;">
+      </div>
+    </t-search-overlay>
+
+    <div class="layout vertical flex">
+      <t-list
+        id="list"
+        search-icon="[[searchIcon]]"
+        filter-icon="[[filterIcon]]"
+        disable-filter-icon="[[disableFilterIcon]]"
+        currency="USD"
+        data-api="[[apiBaseUrl]]api/flight/results/[[searchId]]/rates?$top=20&token=[[authToken]]"
+        filter-api="[[apiBaseUrl]]api/flight/filter/[[searchId]]/rates?token=[[authToken]]"
+        token-param="inventories"
+        show-twelve-hour-clock="[[hasAmPmTimeFormat]]"
+        filter-Results-Api="[[apiBaseUrl]]api/flight/results/filter/[[searchId]]/rates?$top=20&token=[[authToken]]"
+        with-sorting
+        sort-params="[[sortParams]]"
+        with-filter
+        include-filters="[[includeFilters]]"
+        on-list-population="_onListPopulation"
+        on-redirect-click="_handleRedirection"
+        on-modify-filter-data="_cleanFilterData"
+        on-item-selected="_onResultSelected">
+          <template>
+              <t-result-item 
+                  default-logo='../../Content/icon_mixedairline.jpg'
+                  itinerary="{{item}}"
+                  show-twelve-hour-clock="[[hasAmPmTimeFormat]]"
+                  >
+              </t-result-item>
+          </template>
+      </t-list>
+    </div>
+
+    <t-sessionstorage
+      id="sessionStore"
+      api-url-format="[[apiUrlFormat]]"
+      on-t-sessionstorage-load-success="_onSessionGet"
+      on-t-sessionstorage-save-success="_onSessionSave">
+    </t-sessionstorage>
+  </template>
+  <script>
+  (function() {
+
+      'use strict'
+
+      Polymer({
+
+          is: 't-flight-result-page',
+
+          behaviors: [
+            TravelNxt.Behaviors.PageBehavior,
+            TravelNxt.Behaviors.SessionBehavior
+          ],
+
+          properties: {
+
+            /**
+             * This property defines the sort params
+             * @type {Array}
+             */
+            sortParams: {
+              type: Array,
+              value: function () {
+                return [{
+                  "key":"Duration",
+                  "value":"$orderby=duration/journey"
+                },{
+                  "key":"Stops",
+                  "value":"$orderby=TotalStops"
+                },{
+                  "key":"Price",
+                  "value":"$orderby=minFare%2FFare%2FAmount",
+                  "default":true
+                }];
+              }
+            },
+
+            /**
+             * This property defines which filters to be shown
+             * @type {Array}
+             */
+            includeFilters: {
+              type: Array,
+              value: ["Price","Stops","Name","DepartureTime","ArrivalTime"]
+            },
+
+            /**
+             * This property sets the filter custom icon
+             * @type {String}
+             */
+            filterIcon: String,
+
+            flightIcon: String,
+
+            /**
+             * This Property sets search custom icon
+             * @type {String}
+             */
+            searchIcon: String,
+
+            /**
+             * Stores the flight recap data
+             * @type {Object}
+             */
+            flightRecapData: Object,
+
+            hasAmPmTimeFormat: {
+              type: Boolean,
+              value: false
+            }
+          },
+
+          observers: [
+            '__pageLoad(visible)',
+            '__updatePage(searchId)'
+          ],
+
+          /**
+           * This is observer method and executed every time `visible` or `searchId` changes
+           * @param  {String} visible
+           * @param  {String} searchId
+           * @return {Void}
+           */
+          __pageLoad: function (visible) {
+              if (!visible) {
+                  return;
+              }
+
+              this._syncSession();
+          },
+
+          __updatePage: function (searchId) {
+
+            if (!searchId) {
+              this.fire('go-to-search');
+            }
+
+            this.$.loadingOverlay.active = true;
+            this.$.loadingOverlay.value = 0;
+            this.$.list.generateList();
+            var filterComp = this.$.list.$.filter;
+
+            //TODO Resetting of filters should be handled in filter component
+            //code starts here
+            filterComp.appliedFilters = [];
+            if (filterComp.cachedFilters.length) {
+              filterComp.cachedFilters.forEach(function (cache) {
+                filterComp._resetElement(cache.element, cache.name);
+              });
+              filterComp.cachedFilters = [];
+            }
+            //code ends here
+
+            filterComp.generateFilter();
+          },
+
+          /**
+           * This is observer method and executed when list is populated in `t-list`
+           * @return {Void}
+           */
+          _onListPopulation: function () {
+            //ending the overlay
+            this.$.loadingOverlay.value = 100;
+          },
+
+          _cleanFilterData: function (event) {
+            var response = event.detail;
+            var currency = response.filters[0].items[0].additionalInfo[0].value;
+            response.filters.forEach(function (filter) {
+              filter.displayLabel = '';
+              switch (filter.category) {
+                case 'Stops':
+                case 'Name':
+                  filter.displayLabel = filter.label + 's (' + currency + ')';
+                  filter.items.forEach(function (seg) {
+                    seg.displayValue = parseInt(seg.value);
+                  });
+                  break;
+                }
+            });
+            response.element.response = response.filters;
+          },
+
+          /**
+           * This is Event driven method, called when `book-flight-itinerary` event is fired. This method fires `flight-select` event and also saves the selected itinerary in sessionStore
+           * @param  {[event]} e
+           * @return {[Void]}
+           */
+          _onResultSelected: function (e) {
+            if (!e || !e.detail) {
+              return;
+            }
+
+            if (!this.itinerary || (this.itinerary.id !== e.detail.id)) {
+
+              this.itinerary = e.detail;
+
+              this._data = [{
+                key: 'flight_Itinerary',
+                propertyName: 'itinerary',
+                value: this.itinerary
+              }];
+
+              this.setSession();
+            }
+
+            this.fire('flight-select', this.itinerary);
+          },
+
+          _syncSession: function () {
+            this._data = [{
+              key: 'Flight_Search_Criteria',
+              propertyName: 'searchCriteria'
+            },{
+              key: 'Flight_Search_Id',
+              propertyName: 'searchId'
+            }];
+            this.getSession();
+          },
+
+          _handleRedirection: function (e) {
+            this.fire('go-to-search');
+          }
+      });
+  })();
+  </script>
+
+</dom-module>
