@@ -62,7 +62,7 @@
         on-item-selected="_onResultSelected">
           <template>
               <t-result-item 
-                  default-logo='../../Content/icon_mixedairline.jpg'
+                  default-logo='[[defaultAirlineImage]]'
                   itinerary="{{item}}"
                   show-twelve-hour-clock="[[hasAmPmTimeFormat]]"
                   >
@@ -143,6 +143,8 @@
              * @type {Object}
              */
             flightRecapData: Object,
+
+            defaultAirlineImage: String,
 
             hasAmPmTimeFormat: {
               type: Boolean,
