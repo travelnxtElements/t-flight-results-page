@@ -58,8 +58,7 @@
         include-filters="[[includeFilters]]"
         on-list-population="_onListPopulation"
         on-redirect-click="_handleRedirection"
-        on-modify-filter-data="_cleanFilterData"
-        on-item-selected="_onResultSelected">
+        on-modify-filter-data="_cleanFilterData">
           <template>
               <t-result-item 
                   default-logo='[[defaultAirlineImage]]'
@@ -156,6 +155,10 @@
             '__pageLoad(visible)',
             '__updatePage(searchId)'
           ],
+
+          listeners: {
+              'result-item-selected': '_onResultSelected'
+          },
 
           /**
            * This is observer method and executed every time `visible` or `searchId` changes
