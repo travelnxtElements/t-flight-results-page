@@ -1,5 +1,9 @@
 {
   "name": "t-flight-results-page",
+  "version": "0.0.0",
+  "authors": [
+    "Ganesh Ratnaparkhi <ganeshr43@gmail.com>"
+  ],
   "description": "Respository for flight results page.",
   "main": "t-flight-results-page.html",
   "dependencies": {
